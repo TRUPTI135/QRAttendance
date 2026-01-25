@@ -1,10 +1,5 @@
-import AdminQRGenerator from "../components/AdminQRGenerator";
-
+import AdminQRGenerator from "../components/AdminQRgenerator";
 export default function Admin() {
-  return (
-    <div className="container">
-      <h2>Admin Dashboard</h2>
-      <AdminQRGenerator />
-    </div>
-  );
+  return <AdminQRGenerator />;
 }
+

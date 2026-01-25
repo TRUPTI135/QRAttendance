@@ -1,10 +1,7 @@
-import QRScanner from "../components/QRScanner";
+import { useAuth } from "../auth/AuthProvider";
+import { Navigate } from "react-router-dom";
 
 export default function User() {
-  return (
-    <div className="container">
-      <h2>User Attendance</h2>
-      <QRScanner />
-    </div>
-  );
+  const { user } = useAuth();
+  return user ? <Navigate to="/scan" /> : <Navigate to="/student-login" />;
 }

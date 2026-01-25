@@ -1,38 +1,58 @@
 import { useState } from "react";
 import QRCode from "react-qr-code";
 import { supabase } from "../supabaseClient";
+import { getCurrentLocation } from "../utils/locationUtils";
+import { encodeQR } from "../utils/qrUtils";
 
 export default function AdminQRGenerator() {
-  const [qrValue, setQrValue] = useState(null);
+  const [qr, setQr] = useState("");
+  const [radius, setRadius] = useState(50);
+  const [loading, setLoading] = useState(false);
 
   const generateQR = async () => {
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      const sessionId = crypto.randomUUID();
-      const expiresAt = new Date(Date.now() + 30 * 1000); // 30s
+    setLoading(true);
 
-      await supabase.from("qr_sessions").insert({
-        id: sessionId,
-        expires_at: expiresAt,
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude,
-        radius_meters: 50
-      });
+    const loc = await getCurrentLocation();
 
-      setQrValue(sessionId);
-    });
+    const { data, error } = await supabase
+      .from("qr_sessions")
+      .insert({
+        lat: loc.lat,
+        lng: loc.lng,
+        radius_meters: radius,
+        expires_at: new Date(Date.now() + 5 * 60000),
+      })
+      .select()
+      .single();
+
+    if (error) {
+      alert(error.message);
+      setLoading(false);
+      return;
+    }
+
+    setQr(encodeQR({ sessionId: data.id }));
+    setLoading(false);
   };
 
   return (
-    <div>
-      <button onClick={generateQR}>Generate Dynamic QR</button>
+    <div className="page">
+      <h2>Admin QR Generator</h2>
 
-      {qrValue && (
-        <div style={{ marginTop: 20 }}>
-          <QRCode value={qrValue} />
-          <p>Valid for 30 seconds</p>
-        </div>
-      )}
+      <label>Distance: {radius} meters</label>
+      <input
+        type="range"
+        min="10"
+        max="200"
+        value={radius}
+        onChange={(e) => setRadius(+e.target.value)}
+      />
+
+      <button onClick={generateQR} disabled={loading}>
+        {loading ? "Generating..." : "Generate QR"}
+      </button>
+
+      {qr && <QRCode value={qr} />}
     </div>
   );
 }
-

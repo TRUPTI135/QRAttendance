@@ -1,12 +1,7 @@
-export function generateQRPayload() {
-  const expiresAt = Date.now() + 30 * 1000; // 30 seconds
-
-  return {
-    sessionId: crypto.randomUUID(),
-    expiresAt
-  };
+export function encodeQR(data) {
+  return btoa(JSON.stringify(data));
 }
 
-export function validateQR(payload) {
-  return Date.now() <= payload.expiresAt;
+export function decodeQR(text) {
+  return JSON.parse(atob(text));
 }
