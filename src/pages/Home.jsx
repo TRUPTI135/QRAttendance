@@ -2,10 +2,11 @@ import { Link } from "react-router-dom";
 
 export default function Home() {
   return (
-    <div className="page">
-      <h1>QR Attendance</h1>
+    <div style={{ padding: 40 }}>
+      <h1>QR Attendance System</h1>
       <Link to="/admin">Admin</Link>
-      <Link to="/user">User</Link>
+      <br />
+      <Link to="/student">Student</Link>
     </div>
   );
 }

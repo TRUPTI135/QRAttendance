@@ -1,7 +1,5 @@
-export function encodeQR(data) {
-  return btoa(JSON.stringify(data));
-}
+export const encodeQR = (payload) =>
+  btoa(JSON.stringify(payload));
 
-export function decodeQR(text) {
-  return JSON.parse(atob(text));
-}
+export const decodeQR = (text) =>
+  JSON.parse(atob(text));
