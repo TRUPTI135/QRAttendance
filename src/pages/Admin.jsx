@@ -9,31 +9,55 @@ export default function Admin() {
   const [attendance, setAttendance] = useState([]);
 
   async function generateQR() {
-    navigator.geolocation.getCurrentPosition(async (pos) => {
-      const { latitude, longitude } = pos.coords;
+    if (!navigator.geolocation) {
+      alert("Geolocation not supported");
+      return;
+    }
 
-      const { data } = await supabase
-        .from("qr_sessions")
-        .insert({
-          lat: latitude,
-          lng: longitude,
-          radius_meters: radius,
-          active: true,
-        })
-        .select()
-        .single();
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude, longitude } = pos.coords;
 
-      setQrValue(encodeQR({ sessionId: data.id }));
-    });
+        const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+
+        const { data, error } = await supabase
+          .from("qr_sessions")
+          .insert({
+            lat: latitude,
+            lng: longitude,
+            radius_meters: radius,
+            active: true,
+            expires_at: expiresAt,
+          })
+          .select()
+          .single();
+
+        console.log("QR SESSION DATA:", data);
+        console.log("QR SESSION ERROR:", error);
+
+        if (error) {
+          alert(`Failed to generate QR: ${error.message}`);
+          return;
+        }
+
+        setQrValue(encodeQR({ sessionId: data.id }));
+      },
+      (err) => {
+        console.error(err);
+        alert("Location permission denied");
+      },
+      { enableHighAccuracy: true }
+    );
   }
 
   useEffect(() => {
     const loadAttendance = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("attendance")
         .select("*")
         .order("scanned_at", { ascending: false });
-      setAttendance(data || []);
+
+      if (!error) setAttendance(data || []);
     };
 
     loadAttendance();
@@ -54,12 +78,20 @@ export default function Admin() {
     <div style={{ padding: 40 }}>
       <h2>Admin Panel</h2>
 
-      <input
-        type="number"
-        value={radius}
-        onChange={(e) => setRadius(+e.target.value)}
-      />
+      <label>
+        Radius (meters):{" "}
+        <input
+          type="number"
+          value={radius}
+          onChange={(e) => setRadius(Number(e.target.value))}
+        />
+      </label>
+
+      <br /><br />
+
       <button onClick={generateQR}>Generate QR</button>
+
+      <br /><br />
 
       {qrValue && <QRCode value={qrValue} />}
 
@@ -76,7 +108,7 @@ export default function Admin() {
           {attendance.map((a) => (
             <tr key={a.id}>
               <td>{new Date(a.scanned_at).toLocaleString()}</td>
-              <td>{a.distance_meters.toFixed(1)}</td>
+              <td>{a.distance_meters?.toFixed(1)}</td>
               <td>{a.valid ? "✅ Present" : "❌ Out"}</td>
             </tr>
           ))}
