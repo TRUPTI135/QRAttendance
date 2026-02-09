@@ -5,11 +5,35 @@ import { supabase } from "../supabaseClient";
 import { calculateDistance } from "../utils/distance";
 import { getDeviceId } from "../utils/device";
 
-
 export default function Student() {
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState("Requesting permissions...");
+  const [locationReady, setLocationReady] = useState(false);
+  const [coords, setCoords] = useState(null);
 
+  // ✅ STEP 1 — Request location immediately (Fix for iOS)
   useEffect(() => {
+    if (!navigator.geolocation) {
+      setMessage("Geolocation not supported");
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords(pos.coords);
+        setLocationReady(true);
+        setMessage("Ready to scan QR");
+      },
+      () => {
+        setMessage("❌ Location permission required");
+      },
+      { enableHighAccuracy: true }
+    );
+  }, []);
+
+  // ✅ STEP 2 — Start scanner ONLY after location granted
+  useEffect(() => {
+    if (!locationReady) return;
+
     const scanner = new Html5QrcodeScanner("reader", {
       fps: 10,
       qrbox: 250,
@@ -17,71 +41,69 @@ export default function Student() {
 
     scanner.render(async (text) => {
       scanner.clear();
+      setMessage("Processing scan...");
 
-      const { sessionId } = decodeQR(text);
-      const deviceId = getDeviceId();
+      try {
+        const { sessionId } = decodeQR(text);
 
-      // 🔹 Fetch session
-      const { data: session } = await supabase
-        .from("qr_sessions")
-        .select("*")
-        .eq("id", sessionId)
-        .single();
+        const { data: session, error } = await supabase
+          .from("qr_sessions")
+          .select("*")
+          .eq("id", sessionId)
+          .single();
 
-      if (!session) {
-        setMessage("❌ Invalid Session");
-        return;
-      }
+        if (error || !session) {
+          setMessage("Invalid session");
+          return;
+        }
 
-      // 🔹 Expiry check
-      if (new Date(session.expires_at) < new Date()) {
-        setMessage("⏱ Session Expired");
-        return;
-      }
+        const deviceId = getDeviceId();
 
-      // 🔹 Duplicate scan check
-      const { data: existing } = await supabase
-        .from("attendance")
-        .select("id")
-        .eq("session_id", sessionId)
-        .eq("device_id", deviceId)
-        .maybeSingle();
+        // 🔒 One scan per device check
+        const { data: existing } = await supabase
+          .from("attendance")
+          .select("id")
+          .eq("session_id", session.id)
+          .eq("device_id", deviceId)
+          .maybeSingle();
 
-      if (existing) {
-        setMessage("⚠️ Already scanned on this device");
-        return;
-      }
+        if (existing) {
+          setMessage("⚠️ Already scanned on this device");
+          return;
+        }
 
-      // 🔹 Geo validation
-      navigator.geolocation.getCurrentPosition(async (pos) => {
-        const d = calculateDistance(
+        const distance = calculateDistance(
           session.lat,
           session.lng,
-          pos.coords.latitude,
-          pos.coords.longitude
+          coords.latitude,
+          coords.longitude
         );
 
-        const valid = d <= session.radius_meters;
+        const valid = distance <= session.radius_meters;
 
         await supabase.from("attendance").insert({
           session_id: session.id,
           device_id: deviceId,
-          user_lat: pos.coords.latitude,
-          user_lng: pos.coords.longitude,
-          distance_meters: d,
+          user_lat: coords.latitude,
+          user_lng: coords.longitude,
+          distance_meters: distance,
           valid,
         });
 
         setMessage(
           valid
             ? "✅ Attendance Marked"
-            : "❌ Outside allowed radius"
+            : "❌ Outside allowed range"
         );
-      });
+
+      } catch (err) {
+        console.error(err);
+        setMessage("Scan failed");
+      }
     });
 
     return () => scanner.clear();
-  }, []);
+  }, [locationReady, coords]);
 
   return (
     <div style={{ padding: 40 }}>
