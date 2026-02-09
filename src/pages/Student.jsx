@@ -6,33 +6,30 @@ import { calculateDistance } from "../utils/distance";
 import { getDeviceId } from "../utils/device";
 
 export default function Student() {
-  const [message, setMessage] = useState("Requesting permissions...");
-  const [locationReady, setLocationReady] = useState(false);
   const [coords, setCoords] = useState(null);
+  const [scannerReady, setScannerReady] = useState(false);
+  const [message, setMessage] = useState(
+    "Tap button to enable location"
+  );
 
-  // ✅ STEP 1 — Request location immediately (Fix for iOS)
-  useEffect(() => {
-    if (!navigator.geolocation) {
-      setMessage("Geolocation not supported");
-      return;
-    }
-
+  // ✅ USER TAP REQUIRED FOR iOS
+  const requestLocation = () => {
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setCoords(pos.coords);
-        setLocationReady(true);
-        setMessage("Ready to scan QR");
+        setScannerReady(true);
+        setMessage("Location enabled — Scan QR");
       },
       () => {
-        setMessage("❌ Location permission required");
+        setMessage("❌ Please allow location access");
       },
       { enableHighAccuracy: true }
     );
-  }, []);
+  };
 
-  // ✅ STEP 2 — Start scanner ONLY after location granted
+  // ✅ Start scanner AFTER permission
   useEffect(() => {
-    if (!locationReady) return;
+    if (!scannerReady) return;
 
     const scanner = new Html5QrcodeScanner("reader", {
       fps: 10,
@@ -41,25 +38,20 @@ export default function Student() {
 
     scanner.render(async (text) => {
       scanner.clear();
-      setMessage("Processing scan...");
+      setMessage("Processing...");
 
       try {
         const { sessionId } = decodeQR(text);
 
-        const { data: session, error } = await supabase
+        const { data: session } = await supabase
           .from("qr_sessions")
           .select("*")
           .eq("id", sessionId)
           .single();
 
-        if (error || !session) {
-          setMessage("Invalid session");
-          return;
-        }
-
         const deviceId = getDeviceId();
 
-        // 🔒 One scan per device check
+        // One scan per device
         const { data: existing } = await supabase
           .from("attendance")
           .select("id")
@@ -103,11 +95,18 @@ export default function Student() {
     });
 
     return () => scanner.clear();
-  }, [locationReady, coords]);
+  }, [scannerReady]);
 
   return (
     <div style={{ padding: 40 }}>
       <h2>Student Scanner</h2>
+
+      {!scannerReady && (
+        <button onClick={requestLocation}>
+          Enable Location
+        </button>
+      )}
+
       <div id="reader" />
       <h3>{message}</h3>
     </div>
