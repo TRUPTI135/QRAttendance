@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { decodeQR } from "../utils/qrUtils";
 import { supabase } from "../supabaseClient";
 import { calculateDistance } from "../utils/distance";
-import { getDeviceId } from "../utility/device";
+import { getDeviceId } from "../utils/device";
+
 
 export default function Student() {
   const [message, setMessage] = useState("");
