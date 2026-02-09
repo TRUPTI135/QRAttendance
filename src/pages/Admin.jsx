@@ -18,7 +18,8 @@ export default function Admin() {
       async (pos) => {
         const { latitude, longitude } = pos.coords;
 
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes
+        const MINUTE = 60 * 1000;
+        const expiresAt = new Date(Date.now() + 2 * MINUTE);
 
         const { data, error } = await supabase
           .from("qr_sessions")
@@ -98,21 +99,31 @@ export default function Admin() {
       <h3>Attendance</h3>
       <table border="1">
         <thead>
+        <tr>
+          <th>Time</th>
+          <th>Distance (m)</th>
+          <th>Device</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+
+       <tbody>
+        {attendance.length === 0 && (
           <tr>
-            <th>Time</th>
-            <th>Distance (m)</th>
-            <th>Status</th>
+            <td colSpan="4">No attendance yet</td>
           </tr>
-        </thead>
-        <tbody>
-          {attendance.map((a) => (
-            <tr key={a.id}>
-              <td>{new Date(a.scanned_at).toLocaleString()}</td>
-              <td>{a.distance_meters?.toFixed(1)}</td>
-              <td>{a.valid ? "✅ Present" : "❌ Out"}</td>
-            </tr>
-          ))}
-        </tbody>
+        )}
+
+        {attendance.map((a) => (
+          <tr key={a.id}>
+            <td>{new Date(a.scanned_at).toLocaleString()}</td>
+            <td>{a.distance_meters?.toFixed(1)}</td>
+            <td>{a.device_id}</td>
+            <td>{a.valid ? "✅ Present" : "❌ Out"}</td>
+          </tr>
+        ))}
+      </tbody>
+
       </table>
     </div>
   );

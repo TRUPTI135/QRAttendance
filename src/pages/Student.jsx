@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { decodeQR } from "../utils/qrUtils";
 import { supabase } from "../supabaseClient";
 import { calculateDistance } from "../utils/distance";
+import { getDeviceId } from "../utility/device";
 
 export default function Student() {
   const [message, setMessage] = useState("");
@@ -17,13 +18,40 @@ export default function Student() {
       scanner.clear();
 
       const { sessionId } = decodeQR(text);
+      const deviceId = getDeviceId();
 
+      // 🔹 Fetch session
       const { data: session } = await supabase
         .from("qr_sessions")
         .select("*")
         .eq("id", sessionId)
         .single();
 
+      if (!session) {
+        setMessage("❌ Invalid Session");
+        return;
+      }
+
+      // 🔹 Expiry check
+      if (new Date(session.expires_at) < new Date()) {
+        setMessage("⏱ Session Expired");
+        return;
+      }
+
+      // 🔹 Duplicate scan check
+      const { data: existing } = await supabase
+        .from("attendance")
+        .select("id")
+        .eq("session_id", sessionId)
+        .eq("device_id", deviceId)
+        .maybeSingle();
+
+      if (existing) {
+        setMessage("⚠️ Already scanned on this device");
+        return;
+      }
+
+      // 🔹 Geo validation
       navigator.geolocation.getCurrentPosition(async (pos) => {
         const d = calculateDistance(
           session.lat,
@@ -36,6 +64,7 @@ export default function Student() {
 
         await supabase.from("attendance").insert({
           session_id: session.id,
+          device_id: deviceId,
           user_lat: pos.coords.latitude,
           user_lng: pos.coords.longitude,
           distance_meters: d,
@@ -45,7 +74,7 @@ export default function Student() {
         setMessage(
           valid
             ? "✅ Attendance Marked"
-            : "❌ You are out of range"
+            : "❌ Outside allowed radius"
         );
       });
     });
